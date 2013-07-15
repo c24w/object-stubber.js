@@ -1,12 +1,6 @@
-define(function () {
+define(['stub-status-tracker'], function (StubStatusTracker) {
 
-	var stubbedObjects = [];
-
-	function hasStubs(subject) { return stubbedObjects.indexOf(subject) !== -1; }
-
-	function setHasStubs(subject) { if (stubbedObjects.indexOf(subject) === -1) { stubbedObjects.push(subject); } }
-
-	function setHasNoStubs(subject) { stubbedObjects.splice(stubbedObjects.indexOf(subject), 1); }
+	stubStatus = new StubStatusTracker();
 
 	function hasOwnProperties(obj) {
 		for (var prop in obj) {
@@ -17,17 +11,15 @@ define(function () {
 		return false;
 	}
 
-	function updateHasStubsStatus(stubber) {
-		if (hasOwnProperties(stubber.shallowBackups) || hasOwnProperties(stubber.nestedStubbers)) {
-			return setHasStubs(stubber.subject);
-		}
+	function updateStubbedStatus(stubber) {
+		var isStubbed = hasOwnProperties(stubber.shallowBackups) ||
+			hasOwnProperties(stubber.nestedStubbers);
 
-		setHasNoStubs(stubber.subject);
+		return stubStatus.setStubbed(stubber.subject, isStubbed);
 	}
 
 	function traverseTo(rootObj, nestings) {
-		var current = rootObj;
-		var nesting;
+		var current = rootObj, nesting;
 
 		while ((nesting = nestings.shift()) !== undefined) {
 			current = current[nesting];
@@ -49,8 +41,10 @@ define(function () {
 		this.shallowBackups = {};
 		this.nestedStubbers = {};
 		this.subject = subject;
-		if (hasStubs(subject)) {
-			throw new Error('Cannot create ObjectStubber (subject object still has active stubs from a previous ObjectStubber).');
+		if (stubStatus.isStubbed(subject)) {
+			// TODO: list names of stubbed functions?
+			// This would mean storing previous stubbers and not just the subject objects
+			throw new Error('Cannot create ObjectStubber (subject object has stubs).');
 		}
 	}
 
@@ -58,7 +52,7 @@ define(function () {
 		// only back-up if not already backed-up
 		this.shallowBackups[fnName] = this.shallowBackups[fnName] || this.subject[fnName];
 		this.subject[fnName] = newFn;
-		updateHasStubsStatus(this);
+		updateStubbedStatus(this);
 	};
 
 	// nestings: 'singleNesting' or ['multiple', 'levels', 'of', 'nesting']
@@ -75,7 +69,7 @@ define(function () {
 		nestedStubber.stubShallow(fnName, newFn);
 
 		nestedStubbers[nestedStubberKey] = nestedStubber;
-		updateHasStubsStatus(this);
+		updateStubbedStatus(this);
 	};
 
 	// delegates to stubDeep/stubShallow
@@ -94,7 +88,7 @@ define(function () {
 		if (fnName in shallowBackups) {
 			this.subject[fnName] = shallowBackups[fnName];
 			delete shallowBackups[fnName];
-			updateHasStubsStatus(this);
+			updateStubbedStatus(this);
 		}
 		else { throw new Error('Cannot un-stub \'' + fnName + '\' (it has not been stubbed).'); }
 	};
@@ -109,7 +103,7 @@ define(function () {
 		nestedStubber.unStub(fnName);
 
 		delete this.nestedStubbers[nestedStubberKey];
-		updateHasStubsStatus(this);
+		updateStubbedStatus(this);
 	};
 
 	// delegates to unStubDeep/unStubShallow
