@@ -85,7 +85,7 @@ define(['stub-status-tracker'], function (StubStatusTracker) {
 
 	ObjectStubber.prototype.unStubShallow = function (fnName) {
 		var shallowBackups = this.shallowBackups;
-		if (fnName in shallowBackups) {
+		if (fnName in shallowBackups) { // -> shallowBackups.hasOwnProperty(fnName) safer
 			this.subject[fnName] = shallowBackups[fnName];
 			delete shallowBackups[fnName];
 			updateStubbedStatus(this);
@@ -103,6 +103,8 @@ define(['stub-status-tracker'], function (StubStatusTracker) {
 		nestedStubber.unStub(fnName);
 
 		delete this.nestedStubbers[nestedStubberKey];
+		// ^ this looks like an error - should ensure all stubs have gone before deleting
+		
 		updateStubbedStatus(this);
 	};
 
@@ -110,7 +112,7 @@ define(['stub-status-tracker'], function (StubStatusTracker) {
 	ObjectStubber.prototype.unStub = function (nestings, fnName) {
 		if (arguments.length === 1) {
 			fnName = nestings;
-			return this.unStubShallow(nestings, fnName);
+			return this.unStubShallow(nestings, fnName); // <- this doesn't take 2 args
 		}
 
 		return this.unStubDeep(nestings, fnName);
